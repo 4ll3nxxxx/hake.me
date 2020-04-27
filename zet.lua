@@ -137,7 +137,7 @@ function arcwarden.OnUpdate()
                 end
                 local tp_unit = NPCs.InRadius(fountain_pos, 16500, Entity.GetTeamNum(me), Enum.TeamType.TEAM_FRIEND)
                 for i = 1, #tp_unit do
-                    if tp_unit[i] and Entity.GetHealth(tp_unit[i]) > 573 and #Heroes.InRadius(Entity.GetAbsOrigin(tp_unit[i]), 1000, Entity.GetTeamNum(me), Enum.TeamType.TEAM_ENEMY) == 0 and  Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(tp_unit[i])):Length2D() > 2000 then
+                    if tp_unit[i] and Entity.GetHealth(tp_unit[i]) == Entity.GetMaxHealth(tp_unit[i]) and #Heroes.InRadius(Entity.GetAbsOrigin(tp_unit[i]), 1000, Entity.GetTeamNum(me), Enum.TeamType.TEAM_ENEMY) == 0 and Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(tp_unit[i])):Length2D() > 2000 then
                          table.insert(tp_target, tp_unit[i])
                     end
                 end
