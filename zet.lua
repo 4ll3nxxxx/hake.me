@@ -4,8 +4,8 @@ local arcwarden = {
     sleeptick = 0,
     pout = 0,
     clicked_unit = nil,
-    arcwarden = nil
-    
+    arcwarden = nil,
+    comboing = false
 }
 
 function arcwarden.OnUpdate()
@@ -23,6 +23,7 @@ function arcwarden.OnUpdate()
     creeps = {}
     builds = {}
     team_creeps = {}
+    tp_target = {}
     for i = 1, NPCs.Count() do
         local npc = NPCs.Get(i)
         if me and npc and me ~= npc and Entity.IsAlive(npc) then
@@ -44,6 +45,7 @@ function arcwarden.OnUpdate()
             end
             target = nil
         end
+        arcwarden.comboing = false
     end
     if Entity.GetTeamNum(me) == 2 then
         fountain_pos = Vector(6900.0, 6649.96875, 512.0)
@@ -74,6 +76,7 @@ function arcwarden.OnUpdate()
                 Ability.CastPosition(spark_wraith, Entity.GetAbsOrigin(target))
             end
         end
+        arcwarden.comboing = true
     end
     if next(control_table) then
         for _, unit in ipairs(control_table) do
@@ -85,6 +88,8 @@ function arcwarden.OnUpdate()
                     double_spark_wraith = NPC.GetAbility(unit, "arc_warden_spark_wraith")
                     if NPC.GetItem(unit, "item_ultimate_scepter") or NPC.HasModifier(unit, "modifier_item_ultimate_scepter_consumed") then
                         double_scepter = NPC.GetAbility(unit, "arc_warden_scepter")
+                    else
+                        double_scepter = nil
                     end
                     tpscroll = NPC.GetItemByIndex(unit, 15)
                     --manta = NPC.GetItem(unit, "item_manta")
@@ -93,7 +98,7 @@ function arcwarden.OnUpdate()
                     --bloodthorn = NPC.GetItem(unit, "item_bloodthorn")
                     --diffusal_blade = NPC.GetItem(unit, "item_diffusal_blade")
                     --orchid = NPC.GetItem(unit, "item_orchid")
-                    --invis_item = NPC.GetItem(unit, "item_invis_sword") or NPC.GetItem(unit, "item_silver_edge")
+                    invis_item = NPC.GetItem(unit, "item_invis_sword") or NPC.GetItem(unit, "item_silver_edge")
                 end
                 if NPC.GetUnitName(unit) == "npc_dota_necronomicon_archer_3" then
                     necronomicon_archer_purge = NPC.GetAbility(unit, "necronomicon_archer_purge")
@@ -130,6 +135,15 @@ function arcwarden.OnUpdate()
                         end
                     end
                 end
+                local tp_unit = NPCs.InRadius(fountain_pos, 16500, Entity.GetTeamNum(me), Enum.TeamType.TEAM_FRIEND)
+                for i = 1, #tp_unit do
+                    if tp_unit[i] and Entity.GetHealth(tp_unit[i]) > 573 and #Heroes.InRadius(Entity.GetAbsOrigin(tp_unit[i]), 1000, Entity.GetTeamNum(me), Enum.TeamType.TEAM_ENEMY) == 0 and  Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(tp_unit[i])):Length2D() > 2000 then
+                         table.insert(tp_target, tp_unit[i])
+                    end
+                end
+                if #tp_target < 2 then
+                    table.sort(tp_target, function (a, b) return Entity.GetAbsOrigin(a) > Entity.GetAbsOrigin(b) end)
+                end
                 if double_scepter and Ability.IsReady(double_scepter) and not Ability.IsHidden(double_scepter) then
                     if Entity.GetAbsOrigin(me):Distance(Entity.GetAbsOrigin(unit)):Length2D() < 500 then
                         Ability.CastNoTarget(double_scepter)
@@ -145,14 +159,10 @@ function arcwarden.OnUpdate()
                         Ability.CastNoTarget(necronomicon)
                     --end
                 end
-                local tp_target = Input.GetNearestUnitToCursor(Entity.GetTeamNum(me), Enum.TeamType.TEAM_FRIEND)
-                if tp_target and Entity.GetHealth(tp_target) == Entity.GetMaxHealth(tp_target) and tpscroll and Ability.IsReady(tpscroll) and NPC.IsPositionInRange(Input.GetNearestUnitToCursor(Entity.GetTeamNum(me), Enum.TeamType.TEAM_FRIEND), Input.GetWorldCursorPos(), 1000) and Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(tp_target)):Length2D() > 3000 and Input.IsKeyDownOnce(Enum.ButtonCode.MOUSE_LEFT) then
-                    Ability.CastTarget(tpscroll, tp_target)
-                end
                 if target then
                     if not NPC.HasModifier(unit, "modifier_teleporting") then
                         if (not arcwarden.hasActivity(unit, target) or arcwarden.clicked_unit ~= target) and not arcwarden.isAttacking(unit, target) then
-                            Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, target, Entity.GetAbsOrigin(target), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                            Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_PING_ABILITY , target, Entity.GetAbsOrigin(target), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
                         end
                         if double_flux and Ability.IsReady(double_flux) then
                             Ability.CastTarget(double_flux, target)
@@ -222,48 +232,52 @@ function arcwarden.OnUpdate()
                         end
                         arcwarden.clicked_unit = enemies[1]
                     else
-                        if creeps[1] then
-                            if double_flux and Ability.IsReady(double_flux) then
-                                --Ability.CastTarget(double_flux, creeps[1])
-                            end
-                            if double_arc_warden_magnetic_field and Ability.IsReady(double_arc_warden_magnetic_field) then
-                                if Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(creeps[1])):Length2D() < NPC.GetAttackRange(unit) then
-                                    Ability.CastPosition(double_arc_warden_magnetic_field, Entity.GetAbsOrigin(unit) + Entity.GetRotation(unit):GetForward():Normalized():Scaled(100))
-                                    arcwarden.magnetic_field_pos = Entity.GetAbsOrigin(unit) + Entity.GetRotation(unit):GetForward():Normalized():Scaled(100)
-                                end
-                            end
-                            if double_spark_wraith and Ability.IsReady(double_spark_wraith) then
-                                if NPC.IsRunning(creeps[1]) then
-                                    Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(creeps[1]) + Entity.GetRotation(creeps[1]):GetForward():Normalized():Scaled(150 + NPC.GetMoveSpeed(creeps[1])))
-                                else
-                                    Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(creeps[1]))
-                                end
-                            end
-                            if (not arcwarden.hasActivity(unit, creeps[1]) or arcwarden.clicked_unit ~= creeps[1]) and not arcwarden.blockedActivity(unit) and not arcwarden.isAttacking(unit, creeps[1]) then
-                                Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, creeps[1], Entity.GetAbsOrigin(creeps[1]), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
-                            end
-                            arcwarden.clicked_unit = creeps[1]
+                        if tp_target[1] and tpscroll and Ability.IsReady(tpscroll) and Input.IsKeyDown(Enum.ButtonCode.KEY_SPACE) and not arcwarden.comboing  then
+                            Ability.CastTarget(tpscroll, tp_target[1])
                         else
-                            if builds[1] then
-                                if double_spark_wraith and Ability.IsReady(double_spark_wraith) then
-                                    Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(builds[1]) + ((fountain_pos - Entity.GetAbsOrigin(builds[1])):Normalized():Scaled(arcwarden.pout)))
-                                    if NPC.GetActivity(unit) == Enum.GameActivity.ACT_DOTA_CAST_ABILITY_3 then
-                                        arcwarden.pout = arcwarden.pout + 375
+                            if creeps[1] then
+                                if double_flux and Ability.IsReady(double_flux) then
+                                    --Ability.CastTarget(double_flux, creeps[1])
+                                end
+                                if double_arc_warden_magnetic_field and Ability.IsReady(double_arc_warden_magnetic_field) then
+                                    if Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(creeps[1])):Length2D() < NPC.GetAttackRange(unit) then
+                                        Ability.CastPosition(double_arc_warden_magnetic_field, Entity.GetAbsOrigin(unit) + Entity.GetRotation(unit):GetForward():Normalized():Scaled(100))
+                                        arcwarden.magnetic_field_pos = Entity.GetAbsOrigin(unit) + Entity.GetRotation(unit):GetForward():Normalized():Scaled(100)
                                     end
                                 end
-                                if (not arcwarden.hasActivity(unit, builds[1]) or arcwarden.clicked_unit ~= builds[1]) and not arcwarden.blockedActivity(unit) then
-                                    Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, builds[1], Entity.GetAbsOrigin(builds[1]), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                if double_spark_wraith and Ability.IsReady(double_spark_wraith) then
+                                    if NPC.IsRunning(creeps[1]) then
+                                        Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(creeps[1]) + Entity.GetRotation(creeps[1]):GetForward():Normalized():Scaled(150 + NPC.GetMoveSpeed(creeps[1])))
+                                    else
+                                        Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(creeps[1]))
+                                    end
                                 end
-                                arcwarden.clicked_unit = builds[1]
+                                if (not arcwarden.hasActivity(unit, creeps[1]) or arcwarden.clicked_unit ~= creeps[1]) and not arcwarden.blockedActivity(unit) and not arcwarden.isAttacking(unit, creeps[1]) then
+                                    Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, creeps[1], Entity.GetAbsOrigin(creeps[1]), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                end
+                                arcwarden.clicked_unit = creeps[1]
                             else
-                                if Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(me)):Length2D() < 2000 and Input.IsKeyDown(Enum.ButtonCode.MOUSE_RIGHT) then
-                                    Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, nil, Input.GetWorldCursorPos(), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
-                                else
-                                    if team_creeps[1] then
-                                        if not arcwarden.hasActivity(unit, team_creeps[1]) or arcwarden.clicked_unit ~= team_creeps[1] then
-                                            Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, nil, Entity.GetAbsOrigin(team_creeps[1]) + Entity.GetRotation(team_creeps[1]):GetForward():Normalized():Scaled(600), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                if builds[1] then
+                                    if double_spark_wraith and Ability.IsReady(double_spark_wraith) then
+                                        Ability.CastPosition(double_spark_wraith, Entity.GetAbsOrigin(builds[1]) + ((fountain_pos - Entity.GetAbsOrigin(builds[1])):Normalized():Scaled(arcwarden.pout)))
+                                        if NPC.GetActivity(unit) == Enum.GameActivity.ACT_DOTA_CAST_ABILITY_3 then
+                                            arcwarden.pout = arcwarden.pout + 375
                                         end
-                                        arcwarden.clicked_unit = team_creeps[1]
+                                    end
+                                    if (not arcwarden.hasActivity(unit, builds[1]) or arcwarden.clicked_unit ~= builds[1]) and not arcwarden.blockedActivity(unit) then
+                                        Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, builds[1], Entity.GetAbsOrigin(builds[1]), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                    end
+                                    arcwarden.clicked_unit = builds[1]
+                                else
+                                    if Entity.GetAbsOrigin(unit):Distance(Entity.GetAbsOrigin(me)):Length2D() < 2000 and Input.IsKeyDown(Enum.ButtonCode.MOUSE_RIGHT) then
+                                        Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, nil, Input.GetWorldCursorPos(), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                    else
+                                        if team_creeps[1] then
+                                            if not arcwarden.hasActivity(unit, team_creeps[1]) or arcwarden.clicked_unit ~= team_creeps[1] then
+                                                Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, nil, Entity.GetAbsOrigin(team_creeps[1]) + Entity.GetRotation(team_creeps[1]):GetForward():Normalized():Scaled(600), nil, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, unit)
+                                            end
+                                            arcwarden.clicked_unit = team_creeps[1]
+                                        end
                                     end
                                 end
                             end
@@ -277,6 +291,16 @@ function arcwarden.OnUpdate()
         arcwarden.pout = 0
     end
     arcwarden.sleeptick = os.clock() + 0.35
+end
+
+function arcwarden.OnGameEnd()
+    arcwarden.comboing = false
+    control_table = {}
+    enemies = {}
+    creeps = {}
+    builds = {}
+    team_creeps = {}
+    tp_target = {}
 end
 
 function arcwarden.hasActivity(npc)
